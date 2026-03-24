@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -10,6 +11,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  late Future<ApiResult> _homeFuture;
 
   void _onNavTap(int index) {
     if (index == 0) {
@@ -26,11 +28,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _homeFuture = ApiClient().fetchHomeData();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final mutedText = Theme.of(context)
-        .colorScheme
-        .onBackground
-        .withOpacity(0.6);
     return Scaffold(
       extendBody: true,
       floatingActionButton: FloatingActionButton.extended(
@@ -64,154 +68,230 @@ class _HomeScreenState extends State<HomeScreen> {
           )
         ),
         child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Hello, Reader",
-                              style: Theme.of(context).textTheme.titleLarge
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              "Find your next favorite book",
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onBackground
-                                        .withOpacity(0.6)
-                                  )
-                            )
-                          ]
-                        )
-                      ),
-                      const SizedBox(width: 12),
-                      Stack(
+          child: FutureBuilder<ApiResult>(
+            future: _homeFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (!snapshot.hasData || snapshot.data?.success != true) {
+                return _ErrorState(
+                  message: snapshot.data?.message ?? "Failed to load home data",
+                  onRetry: () => setState(
+                    () => _homeFuture = ApiClient().fetchHomeData()
+                  )
+                );
+              }
+
+              final data = snapshot.data!.data;
+              final categories = List<Map<String, dynamic>>.from(
+                data["categories"] ?? []
+              );
+              final featured = List<Map<String, dynamic>>.from(
+                data["featured"] ?? []
+              );
+              final bestSellers = List<Map<String, dynamic>>.from(
+                data["bestSellers"] ?? []
+              );
+
+              return CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                      child: Row(
                         children: [
-                          CircleAvatar(
-                            radius: 22,
-                            backgroundColor: AppTheme.secondary.withOpacity(0.2),
-                            child: const Icon(Icons.person, color: AppTheme.primary)
-                          ),
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: const BoxDecoration(
-                                color: AppTheme.accent,
-                                shape: BoxShape.circle
-                              )
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Hello, Reader",
+                                  style: Theme.of(context).textTheme.titleLarge
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  "Find your next favorite book",
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onBackground
+                                            .withOpacity(0.6)
+                                      )
+                                )
+                              ]
                             )
+                          ),
+                          const SizedBox(width: 12),
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor: AppTheme.secondary.withOpacity(0.2),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: AppTheme.primary
+                                )
+                              ),
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: const BoxDecoration(
+                                    color: AppTheme.accent,
+                                    shape: BoxShape.circle
+                                  )
+                                )
+                              )
+                            ]
                           )
                         ]
                       )
-                    ]
-                  )
-                )
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _SearchBar()
-                )
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                  child: _SectionHeader(title: "Featured", actionLabel: "View all")
-                )
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 230,
-                  child: ListView(
-                    padding: const EdgeInsets.only(left: 20),
-                    scrollDirection: Axis.horizontal,
-                    children: const [
-                      _FeaturedCard(
-                        title: "The Silent Library",
-                        author: "A. Hemsworth",
-                        price: "12.90"
-                      ),
-                      _FeaturedCard(
-                        title: "City of Pages",
-                        author: "L. Bennett",
-                        price: "14.50"
-                      ),
-                      _FeaturedCard(
-                        title: "Moonlight Ink",
-                        author: "R. Alcott",
-                        price: "11.20"
+                    )
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _SearchBar()
+                    )
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                      child: _SectionHeader(
+                        title: "Featured",
+                        actionLabel: "View all"
                       )
-                    ]
-                  )
-                )
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                  child: _SectionHeader(title: "Categories", actionLabel: "Explore")
-                )
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 46,
-                  child: ListView(
-                    padding: const EdgeInsets.only(left: 20),
-                    scrollDirection: Axis.horizontal,
-                    children: const [
-                      _CategoryChip(label: "Romance"),
-                      _CategoryChip(label: "Science"),
-                      _CategoryChip(label: "Business"),
-                      _CategoryChip(label: "Fantasy"),
-                      _CategoryChip(label: "Children"),
-                      _CategoryChip(label: "Self-help")
-                    ]
-                  )
-                )
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                  child: _SectionHeader(title: "Best sellers", actionLabel: "More")
-                )
-              ),
-              SliverList(
-                delegate: SliverChildListDelegate(
-                  const [
-                    _BookListItem(
-                      title: "Design for Real Life",
-                      author: "J. Morgan",
-                      price: "18.00"
+                    )
+                  ),
+                  if (featured.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Text("No featured books yet")
+                      )
+                    )
+                  else
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 230,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.only(left: 20),
+                          scrollDirection: Axis.horizontal,
+                          itemCount: featured.length,
+                          itemBuilder: (context, index) {
+                            final book = featured[index];
+                            return _FeaturedCard(
+                              title: book["title"]?.toString() ?? "",
+                              author: book["author"]?.toString() ?? "",
+                              price: book["price"]?.toString() ?? "",
+                              imageUrl: book["cover_image"]?.toString()
+                            );
+                          }
+                        )
+                      )
                     ),
-                    _BookListItem(
-                      title: "Startup Compass",
-                      author: "V. Carter",
-                      price: "16.40"
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                      child: _SectionHeader(
+                        title: "Categories",
+                        actionLabel: "Explore"
+                      )
+                    )
+                  ),
+                  if (categories.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Text("No categories available")
+                      )
+                    )
+                  else
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 46,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.only(left: 20),
+                          scrollDirection: Axis.horizontal,
+                          itemCount: categories.length,
+                          itemBuilder: (context, index) {
+                            final category = categories[index];
+                            return _CategoryChip(
+                              label: category["name"]?.toString() ?? ""
+                            );
+                          }
+                        )
+                      )
                     ),
-                    _BookListItem(
-                      title: "Mindful Steps",
-                      author: "N. Kapoor",
-                      price: "10.60"
-                    ),
-                    SizedBox(height: 120)
-                  ]
-                )
-              )
-            ]
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                      child: _SectionHeader(
+                        title: "Best sellers",
+                        actionLabel: "More"
+                      )
+                    )
+                  ),
+                  if (bestSellers.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Text("No books found")
+                      )
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (index == bestSellers.length) {
+                            return const SizedBox(height: 120);
+                          }
+                          final book = bestSellers[index];
+                          return _BookListItem(
+                            title: book["title"]?.toString() ?? "",
+                            author: book["author"]?.toString() ?? "",
+                            price: book["price"]?.toString() ?? "",
+                            imageUrl: book["cover_image"]?.toString()
+                          );
+                        },
+                        childCount: bestSellers.length + 1
+                      )
+                    )
+                ]
+              );
+            }
           )
+        )
+      )
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            ElevatedButton(onPressed: onRetry, child: const Text("Retry"))
+          ]
         )
       )
     );
@@ -280,11 +360,13 @@ class _FeaturedCard extends StatelessWidget {
   final String title;
   final String author;
   final String price;
+  final String? imageUrl;
 
   const _FeaturedCard({
     required this.title,
     required this.author,
-    required this.price
+    required this.price,
+    this.imageUrl
   });
 
   @override
@@ -317,9 +399,28 @@ class _FeaturedCard extends StatelessWidget {
               gradient: AppTheme.primaryGradient,
               borderRadius: BorderRadius.circular(14)
             ),
-            child: const Center(
-              child: Icon(Icons.auto_stories, size: 40, color: Colors.white)
-            )
+            clipBehavior: Clip.antiAlias,
+            child: imageUrl == null || imageUrl!.isEmpty
+                ? const Center(
+                    child: Icon(
+                      Icons.auto_stories,
+                      size: 40,
+                      color: Colors.white
+                    )
+                  )
+                : Image.network(
+                    imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Center(
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          size: 40,
+                          color: Colors.white
+                        )
+                      );
+                    }
+                  )
           ),
           const SizedBox(height: 12),
           Text(
@@ -374,11 +475,13 @@ class _BookListItem extends StatelessWidget {
   final String title;
   final String author;
   final String price;
+  final String? imageUrl;
 
   const _BookListItem({
     required this.title,
     required this.author,
-    required this.price
+    required this.price,
+    this.imageUrl
   });
 
   @override
@@ -410,7 +513,19 @@ class _BookListItem extends StatelessWidget {
               color: AppTheme.accent.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12)
             ),
-            child: const Icon(Icons.menu_book, color: AppTheme.accent)
+            clipBehavior: Clip.antiAlias,
+            child: imageUrl == null || imageUrl!.isEmpty
+                ? const Icon(Icons.menu_book, color: AppTheme.accent)
+                : Image.network(
+                    imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.broken_image_outlined,
+                        color: AppTheme.accent
+                      );
+                    }
+                  )
           ),
           const SizedBox(width: 12),
           Expanded(

@@ -40,10 +40,7 @@ class ApiClient {
     );
 
     if (result.success && result.data["accessToken"] != null) {
-      await saveTokens(
-        result.data["accessToken"],
-        result.data["refreshToken"]
-      );
+      await saveTokens(result.data["accessToken"]);
     }
 
     return result;
@@ -62,6 +59,14 @@ class ApiClient {
       "/api/auth/reset-password",
       {"email": email, "otp": otp, "newPassword": newPassword}
     );
+  }
+
+  Future<ApiResult> fetchHomeData() {
+    return _get("/api/catalog/home");
+  }
+
+  Future<ApiResult> fetchProfile() async {
+    return _getWithAuth("/api/auth/me");
   }
 
   Future<ApiResult> _post(String path, Map<String, dynamic> body) async {
@@ -98,12 +103,68 @@ class ApiClient {
     }
   }
 
-  Future<void> saveTokens(String accessToken, String? refreshToken) async {
+  Future<ApiResult> _get(String path) async {
+    try {
+      final response = await http.get(Uri.parse("$baseUrl$path"));
+      final Map<String, dynamic> jsonBody = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : {};
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return ApiResult(
+          success: true,
+          message: jsonBody["message"]?.toString() ?? "Success",
+          data: jsonBody
+        );
+      }
+
+      return ApiResult(
+        success: false,
+        message: jsonBody["message"]?.toString() ?? "Request failed",
+        data: jsonBody
+      );
+    } catch (error) {
+      return ApiResult(success: false, message: "Network error", data: {});
+    }
+  }
+
+  Future<ApiResult> _getWithAuth(String path) async {
+    final token = await getAccessToken();
+    if (token == null) {
+      return ApiResult(success: false, message: "Missing token", data: {});
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl$path"),
+        headers: {"Authorization": "Bearer $token"}
+      );
+
+      final Map<String, dynamic> jsonBody = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : {};
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return ApiResult(
+          success: true,
+          message: jsonBody["message"]?.toString() ?? "Success",
+          data: jsonBody
+        );
+      }
+
+      return ApiResult(
+        success: false,
+        message: jsonBody["message"]?.toString() ?? "Request failed",
+        data: jsonBody
+      );
+    } catch (error) {
+      return ApiResult(success: false, message: "Network error", data: {});
+    }
+  }
+
+  Future<void> saveTokens(String accessToken) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString("accessToken", accessToken);
-    if (refreshToken != null) {
-      await prefs.setString("refreshToken", refreshToken);
-    }
   }
 
   Future<String?> getAccessToken() async {

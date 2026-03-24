@@ -1,17 +1,14 @@
 const bcrypt = require("bcryptjs");
 
-const { getUserByEmail, createUser, updatePassword } = require("../models/userModel");
-const { findValidOtp, markUsed } = require("../models/otpModel");
 const {
-  createRefreshToken,
-  findValidRefreshToken,
-  revokeAllForUser
-} = require("../models/refreshTokenModel");
-const { issueOtp } = require("../services/otpService");
+  getUserByEmail,
+  getUserById,
+  createUser,
+  updatePassword
+} = require("../models/userModel");
+const { issueOtp, findValidOtp, markUsed } = require("../services/otpService");
 const {
-  createAccessToken,
-  createRefreshToken: signRefreshToken,
-  verifyRefreshToken
+  createAccessToken
 } = require("../services/tokenService");
 
 function isValidEmail(email) {
@@ -56,7 +53,7 @@ async function verifyOtp(req, res) {
 
   const existing = await getUserByEmail(email);
   if (existing) {
-    await markUsed(record.id);
+    await markUsed(email, "register");
     return res.status(409).json({ message: "Email already registered" });
   }
 
@@ -71,7 +68,7 @@ async function verifyOtp(req, res) {
     passwordHash: payload.passwordHash
   });
 
-  await markUsed(record.id);
+  await markUsed(email, "register");
 
   return res.status(201).json({ message: "Account created" });
 }
@@ -88,21 +85,15 @@ async function login(req, res) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  const matches = await bcrypt.compare(password, user.password_hash);
+  const matches = await bcrypt.compare(password, user.password);
   if (!matches) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
   const accessToken = createAccessToken(user);
-  const refreshToken = signRefreshToken(user);
-
-  await revokeAllForUser(user.id);
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  await createRefreshToken({ userId: user.id, token: refreshToken, expiresAt });
 
   return res.json({
-    accessToken,
-    refreshToken
+    accessToken
   });
 }
 
@@ -144,31 +135,9 @@ async function resetPassword(req, res) {
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await updatePassword(user.id, passwordHash);
-  await markUsed(record.id);
-  await revokeAllForUser(user.id);
+  await markUsed(email, "reset");
 
   return res.json({ message: "Password updated" });
-}
-
-async function refreshToken(req, res) {
-  const { refreshToken: token } = req.body;
-
-  if (!token) {
-    return res.status(400).json({ message: "Missing refresh token" });
-  }
-
-  const record = await findValidRefreshToken(token);
-  if (!record) {
-    return res.status(401).json({ message: "Invalid refresh token" });
-  }
-
-  try {
-    const payload = verifyRefreshToken(token);
-    const accessToken = createAccessToken({ id: payload.sub, email: payload.email });
-    return res.json({ accessToken });
-  } catch (error) {
-    return res.status(401).json({ message: "Invalid refresh token" });
-  }
 }
 
 module.exports = {
@@ -177,5 +146,11 @@ module.exports = {
   login,
   forgotPassword,
   resetPassword,
-  refreshToken
+  me: async (req, res) => {
+    const user = await getUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.json({ user });
+  }
 };

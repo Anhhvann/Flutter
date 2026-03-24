@@ -3,6 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 
 const authRoutes = require("./routes/authRoutes");
+const catalogRoutes = require("./routes/catalogRoutes");
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/catalog", catalogRoutes);
 
 app.use((err, req, res, next) => {
   // Centralized error handling

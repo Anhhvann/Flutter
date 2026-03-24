@@ -15,9 +15,9 @@
 - POST /api/auth/login
 - POST /api/auth/forgot-password
 - POST /api/auth/reset-password
-- POST /api/auth/refresh
 - GET /api/auth/me (requires Bearer token)
 
 ## Notes
-- OTPs expire in 5 minutes.
+- OTPs expire in 5 minutes and are stored in memory (not in DB).
+- JWT refresh tokens are disabled (access token only).
 - Email sending falls back to console logs when SMTP is not configured.
